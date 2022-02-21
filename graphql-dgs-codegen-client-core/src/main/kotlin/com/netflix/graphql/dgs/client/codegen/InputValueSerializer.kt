@@ -24,6 +24,17 @@ import java.util.*
 
 class InputValueSerializer(private val scalars: Map<Class<*>, Coercing<*, *>> = emptyMap()) {
     companion object {
+        val escapeChars = mapOf(
+            '"' to '"',
+            '\\' to '\\',
+            '/' to '/',
+            '\b' to 'b',
+            0xC /*'\f'*/ to 'f',
+            '\n' to 'n',
+            '\r' to 'r',
+            '\t' to 't'
+        )
+
         val toStringClasses = setOf(
             String::class.java,
             LocalDateTime::class.java,
@@ -50,7 +61,8 @@ class InputValueSerializer(private val scalars: Map<Class<*>, Coercing<*, *>> = 
             input.toString()
         } else if (type in toStringClasses) {
             // Call toString for known types, in case no scalar is found. This is for backward compatibility.
-            """"${input.toString().replace("\\", "\\\\").replace("\"", "\\\"")}""""
+            val s = input.toString()
+            toGraphQLStringLiteral(s)
         } else if (input is List<*>) {
             """[${input.filterNotNull().joinToString(", ") { listItem -> serialize(listItem) }}]"""
         } else if (input is Map<*, *>) {
@@ -81,5 +93,30 @@ class InputValueSerializer(private val scalars: Map<Class<*>, Coercing<*, *>> = 
                 }
             }.joinToString(", ", "{", " }")
         }
+    }
+
+    /**
+     * https://spec.graphql.org/October2021/#StringCharacter says anything except '"', '\\', or "(?:\n|\r\n|\r)"
+     * with emphasis on '"', '\\', '/', '\b', '\f', '\n', '\r', '\t',
+     * and then escaping [\x0020-\xFFFF] is player's choice
+     *
+     * graphql.util.EscapeUtil.escapeJsonString is very close to what we want, but is marked @Internal
+     */
+    private fun toGraphQLStringLiteral(input: String): String {
+        val result = StringBuilder()
+        result.append('"')
+        input.forEach {
+            // DANGER: these **must** be first, since they are special cased
+            if (escapeChars.contains(it)) {
+                result.append('\\').append(escapeChars[it])
+            } else if (it.code < 0x20) {
+                // while the spec seems to forbid this, graphql-js accepts them, as does graphql.parser.Parser
+                result.append("\\u").append(String.format("%04x", it.code))
+            } else {
+                result.append(it)
+            }
+        }
+        result.append('"')
+        return result.toString()
     }
 }

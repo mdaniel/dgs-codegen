@@ -108,6 +108,18 @@ class InputValueSerializerTest {
     }
 
     @Test
+    fun `test issue 334b`() {
+        val serialize = InputValueSerializer().serialize("null\u0000string")
+        assertThat(serialize).isEqualTo("\"null\\u0000string\"")
+    }
+
+    @Test
+    fun `test issue 334c`() {
+        val serialize = InputValueSerializer().serialize("esc\u001bstring")
+        assertThat(serialize).isEqualTo("\"esc\\u001bstring\"")
+    }
+
+    @Test
     fun `int value`() {
         val serialize = InputValueSerializer().serialize(1)
         assertThat(serialize).isEqualTo("1")
