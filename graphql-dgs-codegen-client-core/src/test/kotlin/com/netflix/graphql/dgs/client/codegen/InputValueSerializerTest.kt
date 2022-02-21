@@ -43,6 +43,25 @@ class InputValueSerializerTest {
     }
 
     @Test
+    fun `test issue 334 with object`() {
+
+        val movieInput = MovieInput(
+            1,
+            "Some movi\u00e9\u2122",
+            MovieInput.Genre.ACTION,
+            MovieInput.Director("The \u201cDirector\u201d"),
+            listOf(
+                MovieInput.Actor("Actor\r1", "Role 1"),
+                MovieInput.Actor("Actor 2", "Role\n2"),
+            ),
+            DateRange(LocalDate.of(2020, 1, 1), LocalDate.of(2021, 1, 1))
+        )
+
+        val serialize = InputValueSerializer(mapOf(DateRange::class.java to DateRangeScalar())).serialize(movieInput)
+        assertThat(serialize).isEqualTo("{movieId:1, title:\"Some movié™\", genre:ACTION, director:{name:\"The “Director”\" }, actor:[{name:\"Actor\\r1\", roleName:\"Role 1\" }, {name:\"Actor 2\", roleName:\"Role\\n2\" }], releaseWindow:\"01/01/2020-01/01/2021\" }")
+    }
+
+    @Test
     fun `List of a complex object`() {
 
         val movieInput = MovieInput(
@@ -80,6 +99,12 @@ class InputValueSerializerTest {
     fun `String with slashes`() {
         val serialize = InputValueSerializer().serialize("some \\ \"string\"")
         assertThat(serialize).isEqualTo("\"some \\\\ \\\"string\\\"\"")
+    }
+
+    @Test
+    fun `test issue 334`() {
+        val serialize = InputValueSerializer().serialize("some\nstring")
+        assertThat(serialize).isEqualTo("\"some\\nstring\"")
     }
 
     @Test
